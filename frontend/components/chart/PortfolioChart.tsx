@@ -191,8 +191,9 @@ export function PortfolioChart({ className }: PortfolioChartProps) {
   const portfolioChange = chartData.length > 0 ? chartData[chartData.length - 1]?.portfolio : 0
   const sp500Change = chartData.length > 0 ? chartData[chartData.length - 1]?.sp500 : 0
   
-  // Calculate total portfolio value for display (mock)
-  const totalValue = watchlist.reduce((sum, stock) => sum + (stock.price * 100), 0)
+  // Calculate total portfolio value using real stock prices
+  // Assume 1 share of each stock for simplicity (can be made configurable later)
+  const totalValue = watchlist.reduce((sum, stock) => sum + (stock.price || 0), 0)
   const portfolioValue = totalValue * (1 + portfolioChange / 100)
 
   if (watchlist.length === 0) {

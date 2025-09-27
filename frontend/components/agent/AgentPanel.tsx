@@ -41,7 +41,7 @@ function ChatMessageComponent({ message }: { message: ChatMessage }) {
             ? 'bg-muted text-foreground' 
             : 'bg-primary text-primary-foreground ml-auto'
         }`}>
-          <div className="whitespace-pre-wrap break-words">
+          <div className="whitespace-pre-wrap break-words overflow-wrap-anywhere max-h-[200px] overflow-y-auto">
             {message.content}
           </div>
         </div>
@@ -142,7 +142,7 @@ export function AgentPanel({ className }: AgentPanelProps) {
   }
 
   return (
-    <Card className={`${className} flex flex-col h-full`}>
+    <Card className={`${className} flex flex-col h-full overflow-hidden`}>
       <CardHeader className="pb-3 flex-shrink-0">
         <CardTitle className="text-lg flex items-center gap-2">
           <MessageSquare className="h-5 w-5" />
@@ -152,10 +152,22 @@ export function AgentPanel({ className }: AgentPanelProps) {
           Ask me about stock analysis, trends, or market insights
         </p>
       </CardHeader>
-      <CardContent className="p-0 flex flex-col flex-1 min-h-0">
+      <CardContent className="p-0 flex flex-col flex-1 min-h-0 overflow-hidden">
         {/* Chat Messages */}
-        <ScrollArea ref={scrollAreaRef} className="flex-1 px-4 min-h-0">
-          <div className="space-y-4 pb-4 min-h-full">
+        <ScrollArea 
+          ref={scrollAreaRef} 
+          className="flex-1 px-4 min-h-0 overflow-y-auto"
+          type="always"
+        >
+          <div className="space-y-4 pb-4">
+            {chatMessages.length === 0 && (
+              <div className="flex flex-col items-center justify-center h-[200px] text-center">
+                <MessageSquare className="h-12 w-12 text-muted-foreground mb-4" />
+                <p className="text-sm text-muted-foreground">
+                  Start a conversation about your stocks
+                </p>
+              </div>
+            )}
             {chatMessages.map((message) => (
               <ChatMessageComponent key={message.id} message={message} />
             ))}

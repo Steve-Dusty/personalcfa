@@ -12,8 +12,6 @@ import {
   ResizablePanelGroup,
 } from '@/components/ui/resizable'
 import { StockChart } from '@/components/chart/StockChart'
-import { StockDetails } from '@/components/stock/StockDetails'
-import { HeadlineList } from '@/components/news/HeadlineList'
 import { AgentPanel } from '@/components/agent/AgentPanel'
 import { useAppStore } from '@/store/useAppStore'
 
@@ -47,16 +45,14 @@ function TickerDetailContent({ symbol }: { symbol: string }) {
         
         {/* Middle - Details & Metrics */}
         <ResizablePanel defaultSize={30} minSize={25}>
-          <div className="h-full p-4 space-y-4 overflow-y-auto">
-            <StockDetails />
-            
+          <div className="h-full p-4 flex flex-col gap-4">
             {/* Key Metrics */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Key Metrics</CardTitle>
+            <Card className="flex-1">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">Key Metrics</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-2 gap-4 text-sm">
+                <div className="grid grid-cols-2 gap-3 text-sm">
                   <div className="space-y-2">
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">Beta:</span>
@@ -90,47 +86,45 @@ function TickerDetailContent({ symbol }: { symbol: string }) {
             </Card>
 
             {/* Recent Earnings */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Recent Earnings</CardTitle>
+            <Card className="flex-1">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">Recent Earnings</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="space-y-3">
-                  <div className="flex justify-between items-center py-2 border-b">
+                <div className="space-y-2">
+                  <div className="flex justify-between items-center py-1 border-b">
                     <div>
-                      <div className="font-medium">Q4 2023</div>
-                      <div className="text-sm text-muted-foreground">Dec 31, 2023</div>
+                      <div className="font-medium text-sm">Q4 2023</div>
+                      <div className="text-xs text-muted-foreground">Dec 31, 2023</div>
                     </div>
                     <div className="text-right">
-                      <div className="font-medium">$2.18</div>
-                      <div className="text-sm text-green-600">+2.1%</div>
+                      <div className="font-medium text-sm">$2.18</div>
+                      <div className="text-xs text-green-600">+2.1%</div>
                     </div>
                   </div>
-                  <div className="flex justify-between items-center py-2 border-b">
+                  <div className="flex justify-between items-center py-1 border-b">
                     <div>
-                      <div className="font-medium">Q3 2023</div>
-                      <div className="text-sm text-muted-foreground">Sep 30, 2023</div>
+                      <div className="font-medium text-sm">Q3 2023</div>
+                      <div className="text-xs text-muted-foreground">Sep 30, 2023</div>
                     </div>
                     <div className="text-right">
-                      <div className="font-medium">$1.46</div>
-                      <div className="text-sm text-red-600">-1.4%</div>
+                      <div className="font-medium text-sm">$1.46</div>
+                      <div className="text-xs text-red-600">-1.4%</div>
                     </div>
                   </div>
-                  <div className="flex justify-between items-center py-2">
+                  <div className="flex justify-between items-center py-1">
                     <div>
-                      <div className="font-medium">Q2 2023</div>
-                      <div className="text-sm text-muted-foreground">Jun 30, 2023</div>
+                      <div className="font-medium text-sm">Q2 2023</div>
+                      <div className="text-xs text-muted-foreground">Jun 30, 2023</div>
                     </div>
                     <div className="text-right">
-                      <div className="font-medium">$1.26</div>
-                      <div className="text-sm text-green-600">+1.4%</div>
+                      <div className="font-medium text-sm">$1.26</div>
+                      <div className="text-xs text-green-600">+1.4%</div>
                     </div>
                   </div>
                 </div>
               </CardContent>
             </Card>
-
-            <HeadlineList />
           </div>
         </ResizablePanel>
         
@@ -139,7 +133,7 @@ function TickerDetailContent({ symbol }: { symbol: string }) {
         {/* Right - AI Assistant */}
         <ResizablePanel defaultSize={20} minSize={20} maxSize={30}>
           <div className="h-full p-4">
-            <AgentPanel />
+            <AgentPanel className="h-full" />
           </div>
         </ResizablePanel>
       </ResizablePanelGroup>

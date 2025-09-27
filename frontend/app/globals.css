@@ -136,3 +136,58 @@
     overflow: hidden;
   }
 }
+
+/* Custom scrollbar styles for chat */
+@layer components {
+  /* Force scrollbar to always be visible */
+  [data-radix-scroll-area-scrollbar] {
+    display: flex !important;
+    user-select: none;
+    touch-action: none;
+    padding: 2px;
+    background: hsl(var(--muted) / 0.3);
+    transition: all 160ms ease-out;
+    opacity: 1 !important;
+    visibility: visible !important;
+  }
+  
+  [data-radix-scroll-area-scrollbar]:hover {
+    background: hsl(var(--muted) / 0.6);
+  }
+  
+  [data-radix-scroll-area-scrollbar][data-orientation="vertical"] {
+    width: 12px;
+  }
+  
+  [data-radix-scroll-area-scrollbar][data-orientation="horizontal"] {
+    flex-direction: column;
+    height: 12px;
+  }
+  
+  [data-radix-scroll-area-thumb] {
+    flex: 1;
+    background: hsl(var(--muted-foreground) / 0.6);
+    border-radius: 6px;
+    position: relative;
+    transition: all 160ms ease-out;
+    min-height: 20px;
+  }
+  
+  [data-radix-scroll-area-thumb]:hover {
+    background: hsl(var(--muted-foreground) / 0.8);
+  }
+  
+  [data-radix-scroll-area-scrollbar]:hover [data-radix-scroll-area-thumb] {
+    background: hsl(var(--muted-foreground) / 0.9);
+  }
+  
+  /* Ensure scrollbar track is always visible */
+  [data-radix-scroll-area-scrollbar][data-state="visible"] {
+    opacity: 1 !important;
+  }
+  
+  [data-radix-scroll-area-scrollbar][data-state="hidden"] {
+    opacity: 0.7 !important;
+    display: flex !important;
+  }
+}
