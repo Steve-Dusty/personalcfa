@@ -162,15 +162,35 @@ class SimpleFinancialOrchestrator:
         try:
             # IMPORTANT: Clear agent memories to prevent accumulation
             try:
-                if hasattr(self.questionnaire_agent, 'short_term_memory'):
-                    self.questionnaire_agent.short_term_memory.clear()
-                if hasattr(self.main_agent, 'short_term_memory'):
-                    self.main_agent.short_term_memory.clear()
-                if hasattr(self.summarizer, 'short_term_memory'):
-                    self.summarizer.short_term_memory.clear()
-                print("✅ Cleared agent memories")
+                print("🧹 Aggressively clearing all agent memories...")
+                for agent_name, agent in [("Questionnaire", self.questionnaire_agent), ("Main", self.main_agent), ("Summarizer", self.summarizer)]:
+                    print(f"  🔄 Clearing {agent_name} agent...")
+                    
+                    # Clear all possible memory locations
+                    memory_fields = ['short_term_memory', 'memory', 'conversation', 'long_term_memory', 'working_memory']
+                    for field in memory_fields:
+                        if hasattr(agent, field) and getattr(agent, field):
+                            memory_obj = getattr(agent, field)
+                            if hasattr(memory_obj, 'clear'):
+                                memory_obj.clear()
+                            elif hasattr(memory_obj, 'conversation_history'):
+                                memory_obj.conversation_history = []
+                            elif isinstance(memory_obj, list):
+                                memory_obj.clear()
+                    
+                    # Reset specific conversation attributes
+                    if hasattr(agent, 'messages'):
+                        agent.messages = []
+                    if hasattr(agent, 'chat_history'):
+                        agent.chat_history = []
+                    if hasattr(agent, 'conversation_history'):
+                        agent.conversation_history = []
+                    
+                print("✅ All agent memories aggressively cleared")
             except Exception as e:
-                print(f"⚠️ Could not clear memories: {e}")
+                print(f"⚠️ Error clearing memories: {e}")
+                import traceback
+                traceback.print_exc()
             
             # Step 1: Check if we need to ask questions
             questionnaire_response = self.questionnaire_agent.run(f"User query: {query}")
@@ -204,6 +224,7 @@ class SimpleFinancialOrchestrator:
             
             # Step 3: Extract key points and make conversational
             print("📝 Step 3: Creating conversational response...")
+            print("🔄 Processing response through summarizer agent...")
             
             # Smart extraction: Take only the most relevant parts
             lines = detailed_response.split('\n')
@@ -224,16 +245,17 @@ class SimpleFinancialOrchestrator:
             recent_content = '\n'.join(important_lines[-8:])
             
             summary_prompt = f"""
-            The user asked: "{query}"
+            User question: "{query}"
             
-            Here's the content to make conversational:
+            Raw content to convert:
             {recent_content}
             
-            Requirements:
-            - Write ONLY a direct, helpful response to their question
-            - Make it conversational and friendly
-            - Keep it under 100 words
-            - Focus on their specific question
+            Convert this into a friendly chat response. Rules:
+            1. Answer their question directly
+            2. Use conversational tone ("Here's what I found...")
+            3. Max 2-3 sentences 
+            4. No analysis headers or metadata
+            5. Complete your thoughts - don't cut off mid-sentence
             """
             
             summary = self.summarizer.run(summary_prompt)
@@ -253,10 +275,10 @@ class SimpleFinancialOrchestrator:
             
             final_summary = '\n'.join(clean_lines)
             
-            # Final length check
-            if len(final_summary) > 300:
-                print(f"⚠️ Summary still long ({len(final_summary)} chars), truncating...")
-                final_summary = final_summary[:250] + "..."
+            # Final length check - be less aggressive
+            if len(final_summary) > 800:
+                print(f"⚠️ Summary very long ({len(final_summary)} chars), truncating...")
+                final_summary = final_summary[:700] + "..."
             
             return {
                 "type": "response",

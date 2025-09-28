@@ -47,6 +47,13 @@ export async function sendMessage(message: string, watchlistTickers: string[]): 
     const data = await response.json()
     console.log('📄 Received response from backend:', data)
     
+    // Handle different response types
+    if (data.type === 'questions' && data.questions) {
+      // Format questions for display
+      const questionText = `${data.message || 'I need some information to help you better:'}\n\n${data.questions.map((q: string, i: number) => `${i + 1}. ${q}`).join('\n')}`
+      return questionText
+    }
+    
     return data.content || data.response || 'Sorry, I received an empty response from the research system.'
     
   } catch (error) {
@@ -116,14 +123,15 @@ export async function sendMessageStream(
             console.log('Received SSE data:', data)
             
             if (data.type === 'token') {
-              // Handle both regular content and questions
+              // Handle both regular content and questions  
               if (data.need_info) {
                 console.log('Questions detected:', data)
                 onToken(data.content)
               } else {
-                onToken(data.content)
+                // Just accumulate the response, don't show partial updates
+                fullResponse = data.content
+                console.log('Accumulating response:', fullResponse.length, 'characters')
               }
-              fullResponse = data.content
             } else if (data.type === 'done') {
               // Handle completion - check if it's questions or regular response
               if (data.need_info && data.questions) {
@@ -139,8 +147,8 @@ export async function sendMessageStream(
               onError(data.content)
               return
             } else if (data.type === 'status') {
-              // Handle status updates (optional)
-              onToken(data.content)
+              // DON'T show status updates in chat - only log them
+              console.log('Status update:', data.content)
             }
           } catch (parseError) {
             console.warn('Failed to parse SSE data:', line)

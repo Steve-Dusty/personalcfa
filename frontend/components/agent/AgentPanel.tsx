@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import { Send, Bot, User, Loader2, MessageSquare } from 'lucide-react'
+import { Send, Bot, User, Loader2, MessageSquare, Trash2 } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
@@ -9,7 +9,7 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { formatTimeAgo } from '@/lib/format'
-import { sendMessage } from '@/lib/agent/mockAgent'
+import { sendMessage, sendMessageStream } from '@/lib/agent/mockAgent'
 import { useAppStore } from '@/store/useAppStore'
 import type { ChatMessage } from '@/types/polygon'
 
@@ -74,9 +74,10 @@ function TypingIndicator() {
 }
 
 export function AgentPanel({ className }: AgentPanelProps) {
-  const { chatMessages, addChatMessage, watchlist } = useAppStore()
+  const { chatMessages, addChatMessage, clearChatMessages, updateLastChatMessage, watchlist } = useAppStore()
   const [input, setInput] = useState('')
   const [isTyping, setIsTyping] = useState(false)
+  const [streamingMessageId, setStreamingMessageId] = useState<string | null>(null)
   const scrollAreaRef = useRef<HTMLDivElement>(null)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
@@ -104,29 +105,73 @@ export function AgentPanel({ className }: AgentPanelProps) {
 
     // Show typing indicator
     setIsTyping(true)
+    
+    // Don't add empty message yet - wait for actual response
+    let assistantMessage: any = null
 
     try {
       const watchlistTickers = watchlist.map(item => item.symbol)
       
-      // Use simple non-streaming approach for now
-      console.log('AgentPanel: Calling sendMessage (non-streaming)')
-      const response = await sendMessage(userMessage, watchlistTickers)
-      console.log('AgentPanel: Got response:', response)
-      
-      // Add the assistant response directly
-      addChatMessage({
-        role: 'assistant',
-        content: response
-      })
-      
-      setIsTyping(false)
+      // Use streaming for real-time response
+      console.log('AgentPanel: Starting streaming chat...')
+      await sendMessageStream(
+        userMessage,
+        watchlistTickers,
+        // onToken - for questions only, ignore status updates
+        (content: string) => {
+          console.log('AgentPanel: Received token:', content)
+          // Only create message if we don't have one yet (for questions)
+          if (!assistantMessage) {
+            assistantMessage = addChatMessage({
+              role: 'assistant',
+              content: content
+            })
+          } else {
+            updateLastChatMessage(content)
+          }
+        },
+        // onComplete - show ONLY the final response
+        (fullResponse: string) => {
+          console.log('AgentPanel: Stream complete:', fullResponse)
+          
+          // Create the message with final response only
+          if (!assistantMessage) {
+            assistantMessage = addChatMessage({
+              role: 'assistant',
+              content: fullResponse
+            })
+          } else {
+            updateLastChatMessage(fullResponse)
+          }
+          
+          setIsTyping(false)
+          setStreamingMessageId(null)
+        },
+        // onError - handle errors
+        (error: string) => {
+          console.error('AgentPanel: Stream error:', error)
+          
+          // Create error message
+          if (!assistantMessage) {
+            assistantMessage = addChatMessage({
+              role: 'assistant',
+              content: `Sorry, I encountered an error: ${error}`
+            })
+          } else {
+            updateLastChatMessage(`Sorry, I encountered an error: ${error}`)
+          }
+          
+          setIsTyping(false)
+          setStreamingMessageId(null)
+        }
+      )
     } catch (error) {
-      console.error('AgentPanel: Error sending message:', error)
-      addChatMessage({
-        role: 'assistant',
-        content: 'Sorry, I encountered an error. Please try again.'
-      })
+      console.error('AgentPanel: Error starting stream:', error)
+      if (streamingMessageId) {
+        updateLastChatMessage('Sorry, I encountered an error. Please try again.')
+      }
       setIsTyping(false)
+      setStreamingMessageId(null)
     }
   }
 
@@ -143,16 +188,41 @@ export function AgentPanel({ className }: AgentPanelProps) {
     // Auto-resize textarea
     const textarea = e.target
     textarea.style.height = 'auto'
-    textarea.style.height = Math.min(textarea.scrollHeight, 120) + 'px'
+    // Allow up to 6 lines (roughly 120px at 20px per line)
+    const maxHeight = 120
+    const newHeight = Math.min(textarea.scrollHeight, maxHeight)
+    textarea.style.height = newHeight + 'px'
   }
+
+  // Auto-resize on initial render and when input changes
+  useEffect(() => {
+    if (textareaRef.current) {
+      const textarea = textareaRef.current
+      textarea.style.height = 'auto'
+      const maxHeight = 120
+      const newHeight = Math.min(textarea.scrollHeight, maxHeight)
+      textarea.style.height = newHeight + 'px'
+    }
+  }, [input])
 
   return (
     <Card className={`${className} flex flex-col h-full overflow-hidden`}>
       <CardHeader className="pb-3 flex-shrink-0">
-        <CardTitle className="text-lg flex items-center gap-2">
-          <MessageSquare className="h-5 w-5" />
-          AI Assistant
-        </CardTitle>
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-lg flex items-center gap-2">
+            <MessageSquare className="h-5 w-5" />
+            AI Assistant
+          </CardTitle>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={clearChatMessages}
+            className="h-8 w-8 p-0"
+            title="Clear chat history"
+          >
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        </div>
         <p className="text-sm text-muted-foreground">
           Ask me about stock analysis, trends, or market insights
         </p>
@@ -189,7 +259,8 @@ export function AgentPanel({ className }: AgentPanelProps) {
               value={input}
               onChange={handleInputChange}
               onKeyDown={handleKeyDown}
-              className="flex-1 min-h-[40px] max-h-[120px] resize-none"
+              className="flex-1 min-h-[40px] resize-none overflow-hidden"
+              style={{ height: '40px' }}
               disabled={isTyping}
             />
             <Button
