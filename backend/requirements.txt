@@ -1,8 +1,11 @@
+# FastAPI and server dependencies
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+python-dotenv==1.0.0
+
+# Swarms for hierarchical AI agents
 swarms
-python-dotenv
-fastapi
-google-cloud-aiplatform
-google-auth
-google-auth-oauthlib
-google-auth-httplib2
-litellm
+
+# Additional dependencies for AI/ML
+pydantic==2.5.0
+httpx==0.25.2

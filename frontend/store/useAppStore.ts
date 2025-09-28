@@ -30,7 +30,8 @@ interface AppState {
   
   // Agent chat
   chatMessages: ChatMessage[]
-  addChatMessage: (message: Omit<ChatMessage, 'id' | 'timestamp'>) => void
+  addChatMessage: (message: Omit<ChatMessage, 'id' | 'timestamp'>) => ChatMessage
+  updateLastChatMessage: (content: string) => void
   clearChatMessages: () => void
   
   // Search
@@ -110,6 +111,24 @@ export const useAppStore = create<AppState>()(
           timestamp: Date.now()
         }
         set({ chatMessages: [...chatMessages, newMessage] })
+        return newMessage
+      },
+      
+      updateLastChatMessage: (content: string) => {
+        const { chatMessages } = get()
+        console.log('Store: updateLastChatMessage called with:', content)
+        console.log('Store: Current chatMessages length:', chatMessages.length)
+        if (chatMessages.length > 0) {
+          const updatedMessages = [...chatMessages]
+          const lastMessage = updatedMessages[updatedMessages.length - 1]
+          updatedMessages[updatedMessages.length - 1] = {
+            ...lastMessage,
+            content,
+            timestamp: Date.now() // Force update with new timestamp
+          }
+          console.log('Store: Updated last message:', updatedMessages[updatedMessages.length - 1])
+          set({ chatMessages: updatedMessages })
+        }
       },
       
       clearChatMessages: () => set({ chatMessages: [] }),

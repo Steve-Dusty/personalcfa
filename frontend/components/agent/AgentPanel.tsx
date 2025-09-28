@@ -106,21 +106,26 @@ export function AgentPanel({ className }: AgentPanelProps) {
     setIsTyping(true)
 
     try {
-      // Get response from mock agent
       const watchlistTickers = watchlist.map(item => item.symbol)
-      const response = await sendMessage(userMessage, watchlistTickers)
       
-      // Add assistant response
+      // Use simple non-streaming approach for now
+      console.log('AgentPanel: Calling sendMessage (non-streaming)')
+      const response = await sendMessage(userMessage, watchlistTickers)
+      console.log('AgentPanel: Got response:', response)
+      
+      // Add the assistant response directly
       addChatMessage({
         role: 'assistant',
         content: response
       })
+      
+      setIsTyping(false)
     } catch (error) {
+      console.error('AgentPanel: Error sending message:', error)
       addChatMessage({
         role: 'assistant',
         content: 'Sorry, I encountered an error. Please try again.'
       })
-    } finally {
       setIsTyping(false)
     }
   }
@@ -156,10 +161,10 @@ export function AgentPanel({ className }: AgentPanelProps) {
         {/* Chat Messages */}
         <ScrollArea 
           ref={scrollAreaRef} 
-          className="flex-1 px-4 min-h-0 overflow-y-auto"
+          className="flex-1 px-4 min-h-0"
           type="always"
         >
-          <div className="space-y-4 pb-4">
+          <div className="space-y-4 pb-4 min-h-full">
             {chatMessages.length === 0 && (
               <div className="flex flex-col items-center justify-center h-[200px] text-center">
                 <MessageSquare className="h-12 w-12 text-muted-foreground mb-4" />
@@ -168,8 +173,8 @@ export function AgentPanel({ className }: AgentPanelProps) {
                 </p>
               </div>
             )}
-            {chatMessages.map((message) => (
-              <ChatMessageComponent key={message.id} message={message} />
+            {chatMessages.map((message, index) => (
+              <ChatMessageComponent key={`${message.id}-${index}-${message.content.length}`} message={message} />
             ))}
             {isTyping && <TypingIndicator />}
           </div>
