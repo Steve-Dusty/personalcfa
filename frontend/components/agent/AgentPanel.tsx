@@ -41,7 +41,7 @@ function ChatMessageComponent({ message }: { message: ChatMessage }) {
             ? 'bg-muted text-foreground' 
             : 'bg-primary text-primary-foreground ml-auto'
         }`}>
-          <div className="whitespace-pre-wrap break-words overflow-wrap-anywhere max-h-[200px] overflow-y-auto">
+          <div className="whitespace-pre-wrap break-words word-break break-all overflow-wrap-anywhere max-h-[200px] overflow-y-auto">
             {message.content}
           </div>
         </div>
