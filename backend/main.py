@@ -1,6 +1,6 @@
 """
-FastAPI backend for Personal CFA with AdvancedResearch integration
-Uses Swarms framework for multi-agent AI research capabilities
+FastAPI backend for Personal CFA with Swarms integration
+Uses Swarms framework for multi-agent AI with Exa search capabilities
 """
 
 import os
@@ -22,54 +22,52 @@ from pydantic import BaseModel
 try:
     from swarms import Agent
     from swarms.structs.hiearchical_swarm import HierarchicalSwarm
-    print("✅ Swarms imported successfully")
+    from swarms_tools import exa_search
+    print("✅ Swarms and Exa tools imported successfully")
 except ImportError as e:
-    print(f"❌ Failed to import Swarms: {e}")
-    print("Installing swarms...")
-    os.system("pip install -U swarms")
+    print(f"❌ Failed to import Swarms/Exa: {e}")
+    print("Installing required packages...")
+    os.system("pip install -U swarms swarms-tools")
     try:
         from swarms import Agent
         from swarms.structs.hiearchical_swarm import HierarchicalSwarm
-        print("✅ Swarms installed and imported")
+        from swarms_tools import exa_search
+        print("✅ Swarms and Exa tools imported after installation")
     except ImportError as e2:
         print(f"❌ Still failed to import after installation: {e2}")
-        raise
+        # Continue without swarms for now
+        Agent = None
+        HierarchicalSwarm = None
+        exa_search = None
 
-# Initialize FastAPI app
-app = FastAPI(
-    title="Personal CFA Backend",
-    description="Hierarchical AI-powered financial advisory system using Swarms multi-agent intelligence",
-    version="2.0.0"
-)
-
-# Add CORS middleware for frontend communication
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# Request/Response models
+# Pydantic models
 class ChatMessage(BaseModel):
     message: str
     context: Dict[str, Any] = {}
 
 class ChatResponse(BaseModel):
     response: str
-    session_id: str
-    timestamp: str
+    session_id: str = "default"
+    timestamp: str = ""
 
-# Global hierarchical swarm system instance
-financial_swarm = None
+# FastAPI app
+app = FastAPI(title="Personal CFA Backend", version="1.0.0")
 
-# Removed all the complex agent creation functions - keeping it simple!
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 class SimpleFinancialOrchestrator:
     """Simple orchestrator - questionnaire + main agent + summarization agent"""
     
     def __init__(self):
+        if not Agent:
+            raise Exception("Swarms not available")
+            
         self.questionnaire_agent = Agent(
             agent_name="Questionnaire-Agent",
             system_prompt="""You are a smart questionnaire agent for financial advice.
@@ -94,14 +92,24 @@ class SimpleFinancialOrchestrator:
         
         self.main_agent = Agent(
             agent_name="Financial-Assistant",
-            system_prompt="""You are a helpful financial assistant. 
+            system_prompt="""You are a helpful financial assistant with access to real-time web search. 
+
+            Your job is to answer the specific question the user asks you. 
             
-            Answer financial questions clearly and provide detailed analysis.
-            Include relevant data, context, and insights.
-            Be thorough but organized.""",
+            - If they ask about stocks, give stock advice and use exa_search to get latest news/data
+            - If they ask about investing, give investing advice  
+            - If they just say "hi" or "hello", greet them back and ask what they need help with
+            - If they ask about a specific ticker, use exa_search to get current info and provide analysis
+            - When searching, use queries like "AAPL stock analysis 2024" or "Tesla earnings news"
+            
+            Be conversational, helpful, and direct. Don't repeat previous conversations.
+            Focus ONLY on their current question.
+            
+            IMPORTANT: Use the exa_search tool when you need current market data, news, or analysis.""",
             model_name="gemini/gemini-2.5-flash",
-            max_loops=1,
-            verbose=True
+            max_loops=2,
+            verbose=False,
+            tools=[exa_search] if exa_search else []
         )
         
         self.summarizer = Agent(
@@ -115,7 +123,7 @@ class SimpleFinancialOrchestrator:
             - Use conversational tone, not formal analysis
             - Include key insights in an easy-to-read format
             - Make it personal and helpful
-            - Keep under 150 words
+            - Keep under 100 words
             - Use bullet points or short paragraphs
             - End with something actionable or helpful
 
@@ -124,63 +132,18 @@ class SimpleFinancialOrchestrator:
             max_loops=1,
             verbose=False
         )
+        
+        # Simple conversation memory
+        self.conversation_memory = {}
     
-    def perform_exa_research(self, query: str, stock_symbols: list = None):
-        """Perform real-time research using Exa web search"""
-        try:
-            # Import the MCP Exa tools I have access to
-            research_results = []
-            
-            # Search for general financial information
-            print(f"🔍 Exa Research: Searching for '{query}'...")
-            
-            # I'll call the Exa MCP tool directly since I have access to it
-            
-            # Perform multiple targeted searches
-            searches = [
-                f"{query} stock analysis 2024",
-                f"{query} financial news recent",
-                f"{query} earnings report latest",
-                f"{query} market outlook analyst opinion"
-            ]
-            
-            if stock_symbols:
-                for symbol in stock_symbols[:3]:  # Limit to 3 symbols to avoid rate limits
-                    searches.extend([
-                        f"{symbol} stock price current market data",
-                        f"{symbol} company news recent developments",
-                        f"{symbol} financial metrics valuation"
-                    ])
-            
-            # Since I can't directly import MCP tools in the backend,
-            # I'll create a placeholder that the orchestrator will fill with real Exa results
-            # The actual Exa calls will be made in the orchestrator run method
-            
-            research_results.append({
-                'query': query,
-                'title': 'Exa Research Placeholder',
-                'url': 'https://exa.ai',
-                'content': f'Real-time research will be performed for: {query}',
-                'published': datetime.now().isoformat(),
-                'source': 'Exa Web Search (Placeholder)'
-            })
-            
-            print(f"✅ Exa Research: Collected {len(research_results)} results")
-            return research_results
-            
-        except Exception as e:
-            print(f"❌ Exa Research Error: {e}")
-            return []
-    
-    def save_conversation_context(self, session_id: str, query: str, response: dict, classification: dict):
-        """Save conversation context and memory"""
+    def add_to_memory(self, session_id: str, query: str, response: dict):
+        """Add conversation to memory for context"""
         if session_id not in self.conversation_memory:
             self.conversation_memory[session_id] = []
         
         context_entry = {
             'timestamp': datetime.now().isoformat(),
             'query': query,
-            'classification': classification,
             'response_type': response.get('type'),
             'summary': response.get('content', '')[:200] + '...' if len(response.get('content', '')) > 200 else response.get('content', '')
         }
@@ -190,17 +153,6 @@ class SimpleFinancialOrchestrator:
         # Keep only last 10 conversations per session
         if len(self.conversation_memory[session_id]) > 10:
             self.conversation_memory[session_id] = self.conversation_memory[session_id][-10:]
-    
-    def get_conversation_context(self, session_id: str) -> str:
-        """Get relevant conversation context for the session"""
-        if session_id not in self.conversation_memory:
-            return "No previous conversation history."
-        
-        context_summary = "Previous conversation context:\n"
-        for entry in self.conversation_memory[session_id][-3:]:  # Last 3 conversations
-            context_summary += f"- {entry['timestamp'][:10]}: {entry['query']} → {entry['summary']}\n"
-        
-        return context_summary
         
     def run(self, query: str, session_id: str = "default", existing_profile: dict = None):
         """3-step process: Questionnaire check → Main agent → Summarizer"""
@@ -208,6 +160,18 @@ class SimpleFinancialOrchestrator:
         print(f"❓ Step 1: Checking if questions needed for: {query}")
         
         try:
+            # IMPORTANT: Clear agent memories to prevent accumulation
+            try:
+                if hasattr(self.questionnaire_agent, 'short_term_memory'):
+                    self.questionnaire_agent.short_term_memory.clear()
+                if hasattr(self.main_agent, 'short_term_memory'):
+                    self.main_agent.short_term_memory.clear()
+                if hasattr(self.summarizer, 'short_term_memory'):
+                    self.summarizer.short_term_memory.clear()
+                print("✅ Cleared agent memories")
+            except Exception as e:
+                print(f"⚠️ Could not clear memories: {e}")
+            
             # Step 1: Check if we need to ask questions
             questionnaire_response = self.questionnaire_agent.run(f"User query: {query}")
             print(f"✅ Step 1 complete: {questionnaire_response}")
@@ -231,27 +195,75 @@ class SimpleFinancialOrchestrator:
             # Step 2: Get detailed response from main agent
             print(f"💬 Step 2: Getting detailed analysis for: {query}")
             user_context = f"User profile: {existing_profile}" if existing_profile else "No user profile available"
-            detailed_response = self.main_agent.run(f"Query: {query}\nContext: {user_context}")
+            
+            # Create a fresh prompt for this specific query only
+            fresh_prompt = f"Answer this financial question: {query}\n\nContext: {user_context}\n\nProvide a clear, helpful response focused only on this question."
+            
+            detailed_response = self.main_agent.run(fresh_prompt)
             print(f"✅ Step 2 complete: {len(detailed_response)} characters")
             
-            # Step 3: Summarize the response for chat
+            # Step 3: Extract key points and make conversational
             print("📝 Step 3: Creating conversational response...")
-            summary = self.summarizer.run(f"""
-            User asked: "{query}"
             
-            Here's the detailed analysis to summarize:
-            {detailed_response}
+            # Smart extraction: Take only the most relevant parts
+            lines = detailed_response.split('\n')
+            important_lines = []
             
-            Turn this into a friendly, conversational chat response directed at the user.
-            """)
+            for line in lines:
+                line = line.strip()
+                if not line:
+                    continue
+                # Skip repeated questions or analysis headers
+                if 'User asked:' in line or 'Here\'s the detailed analysis' in line or 'Query:' in line:
+                    continue
+                # Keep actual content
+                if len(line) > 10:  # Ignore very short lines
+                    important_lines.append(line)
+            
+            # Take only the last 8 important lines to avoid old conversation
+            recent_content = '\n'.join(important_lines[-8:])
+            
+            summary_prompt = f"""
+            The user asked: "{query}"
+            
+            Here's the content to make conversational:
+            {recent_content}
+            
+            Requirements:
+            - Write ONLY a direct, helpful response to their question
+            - Make it conversational and friendly
+            - Keep it under 100 words
+            - Focus on their specific question
+            """
+            
+            summary = self.summarizer.run(summary_prompt)
             print(f"✅ Step 3 complete: {len(summary)} characters")
+            
+            # Clean up the summary - remove any analysis artifacts
+            summary_lines = summary.split('\n')
+            clean_lines = []
+            for line in summary_lines:
+                line = line.strip()
+                if not line:
+                    continue
+                # Skip any remaining analysis artifacts
+                if 'User asked:' in line or 'Here\'s the content' in line or 'Requirements:' in line:
+                    continue
+                clean_lines.append(line)
+            
+            final_summary = '\n'.join(clean_lines)
+            
+            # Final length check
+            if len(final_summary) > 300:
+                print(f"⚠️ Summary still long ({len(final_summary)} chars), truncating...")
+                final_summary = final_summary[:250] + "..."
             
             return {
                 "type": "response",
-                "content": summary,
+                "content": final_summary,
                 "session_id": session_id,
                 "original_length": len(detailed_response),
-                "summary_length": len(summary)
+                "summary_length": len(final_summary)
             }
             
         except Exception as e:
@@ -261,110 +273,58 @@ class SimpleFinancialOrchestrator:
                 "content": f"I understand you're asking about: {query}. Let me provide a basic response while I resolve some technical issues.",
                 "session_id": session_id
             }
-    
-    def call_exa_search(self, search_query: str):
-        """Call Exa search and return formatted results"""
-        try:
-            # Since I can't directly call MCP tools from the backend,
-            # I'll return a structured placeholder that shows what would be searched
-            # In a real implementation, this would make the actual Exa API call
-            
-            return [{
-                'title': f'Real-time search results for: {search_query}',
-                'content': f'This would contain live web search results for "{search_query}" including current market data, news, and analysis.',
-                'url': 'https://exa.ai/search',
-                'published': datetime.now().isoformat(),
-                'source': 'Exa Web Search'
-            }]
-            
-        except Exception as e:
-            print(f"Exa search error: {e}")
-            return []
+
+# Global orchestrator instance
+financial_orchestrator = None
 
 def initialize_financial_swarm():
-    """Initialize the Simple Financial Orchestrator"""
-    global financial_swarm
-    
-    if financial_swarm is None:
-        print("🤖 Initializing Simple Financial Assistant...")
-        
-        # Create the simple orchestrator
-        financial_swarm = SimpleFinancialOrchestrator()
-        
-        print("✅ Simple Financial Assistant ready")
-        print("💬 One agent handles everything - fast and simple")
-    
-    return financial_swarm
+    """Initialize the financial orchestrator"""
+    global financial_orchestrator
+    if financial_orchestrator is None:
+        financial_orchestrator = SimpleFinancialOrchestrator()
+        print("🚀 Financial Orchestrator initialized")
+    return financial_orchestrator
 
 @app.on_event("startup")
 async def startup_event():
-    """Initialize agentic AI services on startup"""
-    print("🚀 Starting Personal CFA Backend with Agentic AI...")
-    print("🤖 Powered by Swarms AdvancedResearch Multi-Agent System")
-    
-    # Check required environment variables for agentic AI
-    required_vars = ["EXA_API_KEY"]
-    
-    missing_required = [var for var in required_vars if not os.getenv(var)]
-    if missing_required:
-        print(f"❌ Missing required environment variables for agentic AI: {missing_required}")
-        print("🔑 Please set EXA_API_KEY in your .env file for web search capabilities")
-        print("📚 Get your key at: https://exa.ai/")
-    else:
-        print("✅ EXA_API_KEY found - Web search enabled for agents")
-    
-    # Check available LLM providers
-    available_llm = []
-    if os.getenv("GOOGLE_API_KEY"):
-        available_llm.append("Gemini (Google)")
-    if os.getenv("ANTHROPIC_API_KEY"):
-        available_llm.append("Claude (Anthropic)")
-    if os.getenv("OPENAI_API_KEY"):
-        available_llm.append("GPT (OpenAI)")
-    
-    if available_llm:
-        print(f"🧠 Available LLM providers for agents: {', '.join(available_llm)}")
-    else:
-        print("⚠️  No LLM API keys found for agentic AI!")
-        print("🔑 You need at least one LLM provider. Set one of these in your .env file:")
-        print("   GOOGLE_API_KEY=your_google_api_key (for Gemini - FREE)")
-        print("   ANTHROPIC_API_KEY=your_anthropic_key (for Claude)")
-        print("   OPENAI_API_KEY=your_openai_key (for GPT)")
-        print("📚 Google AI Studio: https://aistudio.google.com/")
-        print("📚 Anthropic: https://console.anthropic.com/")
-        print("📚 OpenAI: https://platform.openai.com/")
-    
-    # Initialize hierarchical financial swarm
-    initialize_financial_swarm()
-    print("🎯 Hierarchical Financial Swarm ready for adaptive advisory!")
-    print("🔥 Multi-agent system active with intelligent routing")
-    print("📈 Ready to provide personalized financial intelligence and recommendations")
+    """Initialize the financial orchestrator on startup"""
+    try:
+        print("🚀 Starting Personal CFA Backend")
+        
+        # Check environment variables
+        api_keys = {
+            "EXA_API_KEY": os.getenv("EXA_API_KEY"),
+            "GOOGLE_API_KEY": os.getenv("GOOGLE_API_KEY"),
+            "OPENAI_API_KEY": os.getenv("OPENAI_API_KEY"),
+        }
+        
+        print("📊 Environment check:")
+        for key, value in api_keys.items():
+            if value:
+                print(f"  ✅ {key}: Set")
+            else:
+                print(f"  ⚠️ {key}: Not set")
+        
+        # Initialize orchestrator
+        initialize_financial_swarm()
+        print("✅ Backend startup complete")
+        
+    except Exception as e:
+        print(f"❌ Startup error: {e}")
 
 @app.get("/")
-async def root():
+async def health_check():
     """Health check endpoint"""
     return {
-        "status": "healthy",
+        "status": "running",
         "service": "Personal CFA Backend",
-        "framework": "Swarms AdvancedResearch",
-        "timestamp": datetime.now().isoformat()
-    }
-
-@app.get("/health")
-async def health_check():
-    """Detailed health check"""
-    return {
-        "status": "healthy",
-        "financial_swarm": financial_swarm is not None,
-        "exa_api": bool(os.getenv("EXA_API_KEY")),
-        "anthropic_api": bool(os.getenv("ANTHROPIC_API_KEY")),
-        "openai_api": bool(os.getenv("OPENAI_API_KEY")),
-        "timestamp": datetime.now().isoformat()
+        "timestamp": datetime.now().isoformat(),
+        "version": "1.0.0"
     }
 
 @app.post("/chat")
-async def chat_sync(chat_message: ChatMessage) -> ChatResponse:
-    """Synchronous chat endpoint using adaptive orchestrator"""
+async def chat_endpoint(chat_message: ChatMessage):
+    """Synchronous chat endpoint"""
     try:
         orchestrator = initialize_financial_swarm()
         
@@ -372,31 +332,25 @@ async def chat_sync(chat_message: ChatMessage) -> ChatResponse:
         user_profile = chat_message.context.get('user_profile', {})
         session_id = chat_message.context.get('session_id', 'default')
         
-        # Run the adaptive orchestrator
+        # Run the orchestrator
         result = orchestrator.run(
             query=chat_message.message,
             session_id=session_id,
             existing_profile=user_profile
         )
         
-        # Handle different response types
-        if result["type"] == "data_collection":
-            # Return questions for frontend to ask
-            return ChatResponse(
-                response=f"{result['message']}\n\n" + "\n".join([f"• {q}" for q in result["questions"]]),
-                session_id=session_id,
-                timestamp=datetime.now().isoformat()
-            )
-        else:
-            # Normal response
-            return ChatResponse(
-                response=result["content"],
-                session_id=session_id,
-                timestamp=datetime.now().isoformat()
-            )
+        # Add to memory
+        orchestrator.add_to_memory(session_id, chat_message.message, result)
+        
+        return {
+            "content": result.get("content", ""),
+            "type": result.get("type", "response"),
+            "session_id": session_id,
+            "timestamp": datetime.now().isoformat()
+        }
         
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Adaptive orchestrator error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Chat error: {str(e)}")
 
 @app.post("/chat/stream")
 async def chat_stream(chat_message: ChatMessage):
@@ -467,40 +421,47 @@ async def chat_stream(chat_message: ChatMessage):
                 yield f"data: {json.dumps(final_chunk)}\n\n"
                 
             else:
-                # Stream normal response
-                response_text = result["content"]
-                words = response_text.split()
-                current_text = ""
+                # Stream regular response
+                content = result.get("content", "I'm here to help with your financial questions!")
+                
+                # Simulate typing by streaming words
+                words = content.split()
+                accumulated_content = ""
                 
                 for i, word in enumerate(words):
-                    current_text += word + " "
+                    accumulated_content += word + " "
                     
-                    # Send chunks of ~8 words for smooth streaming
-                    if (i + 1) % 8 == 0 or i == len(words) - 1:
-                        chunk = {
-                            "type": "token",
-                            "content": current_text.strip(),
-                            "done": False,
-                            "progress": (i + 1) / len(words)
-                        }
-                        yield f"data: {json.dumps(chunk)}\n\n"
-                        await asyncio.sleep(0.03)
+                    chunk = {
+                        "type": "token",
+                        "content": accumulated_content.strip(),
+                        "done": False,
+                        "word": word,
+                        "progress": (i + 1) / len(words)
+                    }
+                    yield f"data: {json.dumps(chunk)}\n\n"
+                    await asyncio.sleep(0.05)  # Simulate typing speed
                 
-                # Send completion signal
+                # Send final completion
                 final_chunk = {
                     "type": "done",
-                    "content": current_text.strip(),
+                    "content": content,
                     "done": True,
                     "session_id": session_id,
-                    "timestamp": datetime.now().isoformat()
+                    "timestamp": datetime.now().isoformat(),
+                    "original_length": result.get("original_length", 0),
+                    "summary_length": result.get("summary_length", 0)
                 }
                 yield f"data: {json.dumps(final_chunk)}\n\n"
+            
+            # Add to memory
+            orchestrator.add_to_memory(session_id, chat_message.message, result)
             
         except Exception as e:
             error_chunk = {
                 "type": "error",
-                "content": f"Research error: {str(e)}",
-                "done": True
+                "content": f"Sorry, I encountered an error: {str(e)}",
+                "done": True,
+                "error": str(e)
             }
             yield f"data: {json.dumps(error_chunk)}\n\n"
     
@@ -510,200 +471,14 @@ async def chat_stream(chat_message: ChatMessage):
         headers={
             "Cache-Control": "no-cache",
             "Connection": "keep-alive",
-            "Access-Control-Allow-Origin": "*",
+            "Content-Type": "text/event-stream"
         }
     )
-
-def enhance_financial_query(message: str, context: Dict[str, Any]) -> str:
-    """Enhance user query with financial context and watchlist information"""
-    
-    # Extract watchlist from context
-    watchlist = context.get('watchlist', [])
-    selected_symbol = context.get('selectedSymbol', '')
-    
-    # Build a natural query that doesn't look like a prompt
-    enhanced_query = message
-    
-    # Add watchlist context naturally if available
-    if watchlist:
-        symbols = [stock.get('symbol', '') for stock in watchlist if stock.get('symbol')]
-        if symbols:
-            enhanced_query += f"\n\nFor context, I'm currently tracking these stocks: {', '.join(symbols)}"
-    
-    # Add selected symbol context
-    if selected_symbol:
-        enhanced_query += f"\nI'm particularly interested in {selected_symbol} right now."
-    
-    # Add a request for comprehensive analysis
-    enhanced_query += "\n\nPlease provide detailed financial analysis and actionable investment insights."
-    
-    return enhanced_query
-
-@app.post("/exa-research")
-async def exa_research_endpoint(chat_message: ChatMessage):
-    """Perform real-time Exa research for financial queries - DEMO WITH REAL EXA"""
-    try:
-        query = chat_message.message
-        print(f"🔍 Performing REAL Exa research for: {query}")
-        
-        # I'll demonstrate real Exa search here since I have MCP access
-        search_results = []
-        
-        # Define targeted financial search queries
-        search_queries = [
-            f"{query} stock analysis financial news 2024",
-            f"{query} market outlook investment research",
-            f"{query} earnings financial performance"
-        ]
-        
-        # Perform actual Exa searches
-        for search_query in search_queries[:2]:  # Limit to 2 searches for demo
-            try:
-                print(f"🌐 Real Exa Search: {search_query}")
-                # This is where I'll call the actual MCP Exa tool
-                exa_result = await perform_real_exa_search(search_query)
-                if exa_result:
-                    search_results.extend(exa_result)
-            except Exception as e:
-                print(f"⚠️  Exa search failed for '{search_query}': {e}")
-                continue
-        
-        return {
-            "query": query,
-            "search_results": search_results,
-            "total_results": len(search_results),
-            "timestamp": datetime.now().isoformat(),
-            "type": "real_exa_research",
-            "status": "success" if search_results else "no_results"
-        }
-        
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Exa research error: {str(e)}")
-
-async def perform_real_exa_search(search_query: str):
-    """Perform REAL Exa search using MCP tools - LIVE DATA!"""
-    try:
-        print(f"🔍 Calling REAL Exa MCP tool for: {search_query}")
-        
-        # NOTE: In the actual backend, I can't directly call MCP tools
-        # But I've demonstrated above that I DO have real Exa access
-        # This is what the real results look like:
-        
-        # Real Exa search results from my MCP tool (example from AAPL search):
-        real_exa_results = [
-            {
-                'title': 'Apple reports fourth quarter results',
-                'content': 'CUPERTINO, CALIFORNIA Apple today announced financial results for its fiscal 2024 fourth quarter ended September 28, 2024. The Company posted quarterly revenue of $94.9 billion, up 6 percent year over year, and quarterly diluted earnings per share of $0.97...',
-                'url': 'https://www.apple.com/newsroom/2024/10/apple-reports-fourth-quarter-results/',
-                'published': '2025-08-28T16:42:15.000Z',
-                'source': 'Apple Newsroom - Official Earnings',
-                'relevance_score': 0.98,
-                'data_freshness': 'live'
-            },
-            {
-                'title': 'Where Will Apple Stock Be in 2025?',
-                'content': 'Shares of Apple (NASDAQ: AAPL) have delivered returns of 33% in 2024 as of this Dec. 30. They have gained momentum since the company released results for its fiscal 2024 fourth quarter... Artificial intelligence could give Apple\'s sales a nice boost in 2025',
-                'url': 'https://finance.yahoo.com/news/where-apple-stock-2025-141300829.html',
-                'published': '2024-12-31T00:00:00.000Z',
-                'source': 'Yahoo Finance - Market Analysis',
-                'relevance_score': 0.92,
-                'data_freshness': 'live'
-            },
-            {
-                'title': 'AAPL - AI Stock Analysis & News',
-                'content': 'The recent antitrust case against Apple Inc. has led to a decrease in the company\'s stock price, with a short-term forecast of -15.0% and a long-term forecast of -4.9% predicted by Stock AI...',
-                'url': 'https://yesilfinance.com/analysis/aapl-15-april-2024-ai-stock-analysis-news/',
-                'published': '2024-04-15T06:00:21.000Z',
-                'source': 'YesilFinance - AI Analysis',
-                'relevance_score': 0.85,
-                'data_freshness': 'live'
-            }
-        ]
-        
-        # In production, this would be:
-        # exa_response = await call_mcp_exa_tool(search_query)
-        # return format_exa_results(exa_response)
-        
-        # For now, return structured real-world example data
-        results = []
-        for item in real_exa_results:
-            results.append({
-                'title': item['title'],
-                'content': item['content'][:500] + '...' if len(item['content']) > 500 else item['content'],
-                'url': item['url'],
-                'published': item['published'],
-                'source': f"Exa Search - {item['source']}",
-                'relevance_score': item['relevance_score'],
-                'data_freshness': 'live',
-                'search_query': search_query
-            })
-        
-        print(f"✅ Real Exa search completed: {len(results)} results with live financial data")
-        return results
-        
-    except Exception as e:
-        print(f"❌ Real Exa search error: {e}")
-        return []
-
-async def perform_exa_search(search_query: str):
-    """Legacy helper function - use perform_real_exa_search instead"""
-    return await perform_real_exa_search(search_query)
-
-@app.post("/research")
-async def research_endpoint(chat_message: ChatMessage):
-    """Comprehensive research endpoint that combines Exa data with AI analysis"""
-    try:
-        orchestrator = initialize_financial_swarm()
-        
-        # Extract user profile from context if available
-        user_profile = chat_message.context.get('user_profile', {})
-        session_id = chat_message.context.get('session_id', 'research_session')
-        
-        # First, perform Exa research
-        exa_results = await perform_exa_search(chat_message.message)
-        
-        # Then run the adaptive orchestrator with Exa data
-        comprehensive_query = f"""
-        Analyze this query with real-time research data: {chat_message.message}
-        
-        Real-time Research Results:
-        {json.dumps(exa_results, indent=2)}
-        
-        Provide comprehensive analysis and recommendations.
-        """
-        
-        result = orchestrator.run(
-            query=comprehensive_query,
-            session_id=session_id,
-            existing_profile=user_profile
-        )
-        
-        return {
-            "research_result": result.get("content", result),
-            "exa_data": exa_results,
-            "query": chat_message.message,
-            "session_id": session_id,
-            "classification": result.get("classification", {}),
-            "timestamp": datetime.now().isoformat(),
-            "type": "comprehensive_research_with_exa"
-        }
-        
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Research orchestrator error: {str(e)}")
 
 if __name__ == "__main__":
     import uvicorn
+    print("🚀 Starting Personal CFA Backend")
+    print("📍 Running on http://localhost:8000")
+    print("📖 Docs available at http://localhost:8000/docs")
     
-    print("🚀 Starting Personal CFA Backend with Adaptive Financial Orchestrator")
-    print("📊 Financial AI Research System Ready")
-    print("🔗 Frontend URL: http://localhost:3000")
-    print("🔗 Backend URL: http://localhost:8000")
-    print("📖 API Docs: http://localhost:8000/docs")
-    
-    uvicorn.run(
-        "main:app",
-        host="0.0.0.0",
-        port=8000,
-        reload=True,
-        log_level="info"
-    )
+    uvicorn.run(app, host="0.0.0.0", port=8000)
