@@ -107,9 +107,9 @@ class SimpleFinancialOrchestrator:
             
             IMPORTANT: Use the exa_search tool when you need current market data, news, or analysis.""",
             model_name="gemini/gemini-2.5-flash",
-            max_loops=2,
+            max_loops=1,
+            output_type="final",
             verbose=False,
-            tools=[exa_search] if exa_search else []
         )
         
         self.summarizer = Agent(
@@ -130,6 +130,7 @@ class SimpleFinancialOrchestrator:
             Example tone: "Based on your question about AAPL, here's what I discovered..." """,
             model_name="gemini/gemini-2.5-flash",
             max_loops=1,
+            output_type="final",
             verbose=False
         )
         
@@ -219,7 +220,7 @@ class SimpleFinancialOrchestrator:
             # Create a fresh prompt for this specific query only
             fresh_prompt = f"Answer this financial question: {query}\n\nContext: {user_context}\n\nProvide a clear, helpful response focused only on this question."
             
-            detailed_response = self.main_agent.run(fresh_prompt)
+            detailed_response = self.main_agent.run(f"{fresh_prompt} {exa_search(query=fresh_prompt)}")
             print(f"✅ Step 2 complete: {len(detailed_response)} characters")
             
             # Step 3: Extract key points and make conversational
@@ -289,12 +290,8 @@ class SimpleFinancialOrchestrator:
             }
             
         except Exception as e:
-            print(f"❌ Error: {e}")
-            return {
-                "type": "response", 
-                "content": f"I understand you're asking about: {query}. Let me provide a basic response while I resolve some technical issues.",
-                "session_id": session_id
-            }
+            import traceback
+            print(f"❌ Error: {e} Traceback: {traceback.format_exc()}")
 
 # Global orchestrator instance
 financial_orchestrator = None
